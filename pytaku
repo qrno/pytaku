@@ -1,0 +1,56 @@
+#!/usr/bin/python3
+
+# Used for creating the request url with the search params
+import urllib.parse as urlparse
+from urllib.parse import urlencode
+
+from rich import print, box  # Fancy, colorful printing
+from rich.console import Console
+from rich.prompt import IntPrompt
+from rich.table import Table
+import feedparser       # Parses the RSS feed
+import argparse         # Parses the command arguments and options
+
+console = Console()
+
+parser = argparse.ArgumentParser(description='Search and download torrents from nyaa.si')
+parser.add_argument('query', metavar='query', nargs=1, help='The name of your anime')
+parser.add_argument('--trusted', action='store_true', help='Search for trusted posters')
+args = parser.parse_args()
+
+url = 'https://nyaa.si/rss'
+params = {}
+
+params['c'] = '1_2' # "English Sub" Category
+params['f'] = ('2' if args.trusted else '0')
+params['s'] = 'seeders'
+params['q'] = args.query
+
+url_parts = list(urlparse.urlparse(url))
+url_parts[4] = urlencode(params)
+
+final_url = urlparse.urlunparse(url_parts)
+d = None
+with console.status("Searching through nyaa.si"):
+    d = feedparser.parse(final_url)
+entries = d['entries']
+
+# Table
+table = Table(title="Search Results", box=box.ROUNDED)
+
+table.add_column("#", style='bold cyan')
+table.add_column("Title", style='bold white')
+table.add_column("▲", style='bold green', justify='right')
+table.add_column("▼", style='bold red', justify='right')
+table.add_column("=", style='bold yellow', justify='right')
+
+for idx, entry in enumerate(entries):
+    table.add_row(str(idx),
+                  entry['title'], 
+                  entry['nyaa_seeders'], 
+                  entry['nyaa_leechers'], 
+                  entry['nyaa_downloads'])
+console.print(table)
+
+chosen_torrent = IntPrompt.ask("Type the index of the torrent to be downloaded")
+console.print('magnet:?xt=urn:btih:' + entries[chosen_torrent]['nyaa_infohash'], style="bold cyan")
